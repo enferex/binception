@@ -303,39 +303,49 @@ static const char *hash_to_str(
     return str;
 }
 
-static int save_db(sqlite3 *db, const char *pgname, const func_t *fns)
-{
-    int i;
-    const func_t *fn;
-    char q[1024];
-    char str[MD5_DIGEST_LENGTH * 2 + 1];
 
+static void save_db(sqlite3 *db, const char *pgname, const func_t *fns)
+{
+    int i, next_spin;
+    const func_t *fn;
+    char q[1024], str[MD5_DIGEST_LENGTH * 2 + 1];
+    const char spinny[] = "-\\|/";
+
+    printf("Saving records...  ");
     for (i=0, fn=fns; fn; fn=fn->next, ++i)
     {
-        const char *pg = strrchr(pgname, '/') ? strrchr(pgname, '/') : pgname;
-        snprintf(q, sizeof(q), "INSERT INTO binsniff "
+        const char *pg = strrchr(pgname, '/') ? strrchr(pgname, '/')+1 : pgname;
+        snprintf(q, sizeof(q), "INSERT OR REPLACE INTO binsniff "
                 "(name, start_addr, end_addr, hash) VALUES "
-                "(%s, %lld, %lld)\n",
+                "(\"%s\", %lld, %lld, \"%s\")\n",
                 pg, fn->st, fn->en, hash_to_str(fn->hash, str));
 
         if (strlen(q) == sizeof(q))
           WARN("Database insert string truncated");
 
-        if (!sqlite3_exec(db, q, NULL, NULL, NULL) != SQLITE_OK)
+        if (sqlite3_exec(db, q, NULL, NULL, NULL) != SQLITE_OK)
         {
             WARN("Could not save record to database: %s", sqlite3_errmsg(db));
+            WARN("Query: %s", q);
             sqlite3_close(db);
-            return 0;
+            return;
+        }
+
+        if ((i%5) == 0)
+        {
+            printf("\b%c", spinny[(next_spin++)%4]);
+            fflush(NULL);
         }
     }
 
-    return i;
+    printf("\b\nSaved %d records to database: %s\n",
+           i, sqlite3_db_filename(db, NULL));
 }
 
 
 int main(int argc, char **argv)
 {
-    int opt, i;
+    int opt;
     _Bool verbose;
     const char *fname, *db_uri;
     sqlite3 *db;
@@ -375,10 +385,7 @@ int main(int argc, char **argv)
 
         /* Save results to db */
         if (db_uri)
-        {
-            i = save_db(db, fname, all_funcs);
-            printf("Saved %d records to database: %s\n", i, db_uri);
-        }
+          save_db(db, fname, all_funcs);
 
         /* Done */
         bfd_close(bin);
