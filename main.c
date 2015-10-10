@@ -66,7 +66,7 @@ static bfd_vma curr_addr, start_addr;
 
 static void usage(const char *execname)
 {
-    printf("Usage: %s [executable]]\n", execname);
+    printf("Usage: %s [executable] [-h]\n", execname);
     exit(EXIT_SUCCESS);
 }
 
@@ -230,26 +230,33 @@ static void dump_funcs(const func_t *fns)
 int main(int argc, char **argv)
 {
     int opt;
-    const char *fname;
+    const char *fname, *dbname;
 
-    if (argc != 2)
-      usage(argv[1]);
+    while ((opt = getopt(argc, argv, "d:h")) != -1)
+    {
+        switch (opt)
+        {
+            case 'd': dbname = optarg; break;
+            case 'h': usage(argv[0]); break;
+            default: 
+                fprintf(stderr, "Unrecognized argument: -%c", optarg); 
+                exit(EXIT_FAILURE);
+        }
+    }
 
-    /* Default args */
-    fname = argv[1];
+    while (optind < argc)
+    {
+        fname = argv[optind++];
 
-    /* Sanity */
-    if (!fname)
-      usage(argv[0]);
+        /* Create a callgraph */
+        build_function_hash_list(fname);
 
-    /* Create a callgraph */
-    build_function_hash_list(fname);
+        /* Output the results */
+        dump_funcs(all_funcs);
 
-    /* Output the results */
-    dump_funcs(all_funcs);
-
-    /* Done */
-    bfd_close(bin);
+        /* Done */
+        bfd_close(bin);
+    }
 
     return 0;
 }
