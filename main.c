@@ -60,11 +60,7 @@ typedef struct _func_t
 {
     bfd_vma st; /* Address where a function begins (.text) */
     bfd_vma en; /* Address where a function ends (.text)   */
-#ifdef USE_OPENSSL
     unsigned char hash[MD5_DIGEST_LENGTH];
-#else
-    unsigned char hash[1];
-#endif
     struct _func_t *next;
 } func_t;
 static func_t *all_funcs;
