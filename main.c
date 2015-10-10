@@ -110,6 +110,22 @@ static func_t *new_func(bfd_vma st, bfd_vma en, bfd *bfd, asection *text)
 }
 
 
+/* Reclaim memory from a list of func information */
+static void destroy_funcs(func_t **fnp)
+{
+    func_t *next, *fn = *fnp;
+
+    while (fn)
+    {
+        next = fn->next;
+        free(fn);
+        fn = next;
+    }
+
+    *fnp = NULL;
+}
+
+
 /* Each insn and all arguments are passed as individual strings:
  * We only care about calls and returns.
  *
@@ -291,6 +307,9 @@ int main(int argc, char **argv)
     while (optind < argc)
     {
         fname = argv[optind++];
+
+        /* Clear */
+        destroy_funcs(&all_funcs);
 
         /* Create a callgraph */
         build_function_hash_list(fname);
