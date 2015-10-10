@@ -80,7 +80,7 @@ static bfd_vma curr_addr, start_addr;
 
 static void usage(const char *execname)
 {
-    printf("Usage: %s [executable] [-h]\n", execname);
+    printf("Usage: %s [executable] [-v] [-h]\n", execname);
     exit(EXIT_SUCCESS);
 }
 
@@ -290,20 +290,66 @@ static sqlite3 *init_db(const char *db_uri)
 }
 
 
+static const char *hash_to_str(
+    const char hash[MD5_DIGEST_LENGTH], 
+    char       str[MD5_DIGEST_LENGTH * 2 + 1])
+{
+    int i;
+
+    for (i=0; i<MD5_DIGEST_LENGTH; ++i)
+      sprintf((char *)(str+(i*2)), "%02x", hash[i]);
+
+    str[i*2] = '\0';
+    return str;
+}
+
+static int save_db(sqlite3 *db, const char *pgname, const func_t *fns)
+{
+    int i;
+    const func_t *fn;
+    char q[1024];
+    char str[MD5_DIGEST_LENGTH * 2 + 1];
+
+    for (i=0, fn=fns; fn; fn=fn->next, ++i)
+    {
+        const char *pg = strrchr(pgname, '/') ? strrchr(pgname, '/') : pgname;
+        snprintf(q, sizeof(q), "INSERT INTO binsniff "
+                "(name, start_addr, end_addr, hash) VALUES "
+                "(%s, %lld, %lld)\n",
+                pg, fn->st, fn->en, hash_to_str(fn->hash, str));
+
+        if (strlen(q) == sizeof(q))
+          WARN("Database insert string truncated");
+
+        if (!sqlite3_exec(db, q, NULL, NULL, NULL) != SQLITE_OK)
+        {
+            WARN("Could not save record to database: %s", sqlite3_errmsg(db));
+            sqlite3_close(db);
+            return 0;
+        }
+    }
+
+    return i;
+}
+
+
 int main(int argc, char **argv)
 {
     int opt, i;
+    _Bool verbose;
     const char *fname, *db_uri;
     sqlite3 *db;
 
     /* Args */
     fname = db_uri = NULL;
-    while ((opt = getopt(argc, argv, "d:h")) != -1)
+    verbose = false;
+    while ((opt = getopt(argc, argv, "d:hv")) != -1)
     {
         switch (opt)
         {
             case 'd': db_uri = optarg; break;
             case 'h': usage(argv[0]); break;
+            case 'v': verbose = true; break;
             default: 
                 fprintf(stderr, "Unrecognized argument: -%c", optarg); 
                 exit(EXIT_FAILURE);
@@ -324,7 +370,8 @@ int main(int argc, char **argv)
         build_function_hash_list(fname);
 
         /* Output the results */
-        dump_funcs(all_funcs);
+        if (verbose)
+          dump_funcs(all_funcs);
 
         /* Save results to db */
         //dump_db(all_funcs);
