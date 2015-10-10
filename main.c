@@ -23,6 +23,10 @@
 typedef void *sqlite3;
 #endif
 
+#ifndef USE_OPENSSL
+#define MD5_DIGEST_LENGTH 1
+#endif
+
 
 /* Special thanks to the following for providing a very helpful example of how
  * to use libopcodes + libbfd:
