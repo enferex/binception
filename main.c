@@ -109,7 +109,7 @@ static func_t *new_func(bfd_vma st, bfd_vma en, bfd *bfd, asection *text)
     {
         unsigned char *data;
         const file_ptr off = text->filepos + (st - start_addr);
-        if (!(data = malloc(en - st)))
+        if (!(data = calloc(en - st, 1)))
         {
             printf("Not enough memory to allocate function data\n");
             exit(errno);
