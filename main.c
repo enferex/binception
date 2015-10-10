@@ -357,7 +357,7 @@ int main(int argc, char **argv)
     }
 
     if (db_uri)
-        db = init_db(db_uri);
+      db = init_db(db_uri);
 
     while (optind < argc)
     {
@@ -374,7 +374,11 @@ int main(int argc, char **argv)
           dump_funcs(all_funcs);
 
         /* Save results to db */
-        //dump_db(all_funcs);
+        if (db_uri)
+        {
+            i = save_db(db, fname, all_funcs);
+            printf("Saved %d records to database: %s\n", i, db_uri);
+        }
 
         /* Done */
         bfd_close(bin);
