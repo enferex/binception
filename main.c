@@ -10,9 +10,11 @@
 #define PACKAGE_VERSION 42  /* Defined to ignore config.h include in bfd.h */
 #include <bfd.h>
 #include <dis-asm.h>
-
 #ifdef USE_OPENSSL
 #include <openssl/md5.h>
+#endif
+#ifdef USE_SQLITE
+#include <sqlite3.h>
 #endif
 
 
@@ -227,22 +229,64 @@ static void dump_funcs(const func_t *fns)
 }
 
 
+#ifdef USE_SQLITE
+static sqlite3 *init_db(const char *db_uri)
+{
+    sqlite3 *db;
+    const char *schema = 
+        "CREATE TABLE IF NOT EXISTS binsniff "
+        "(id INTEGER PRIMARY KEY ASC, "
+        " name TEXT,"
+        " start_addr INTEGER, "
+        " end_addr   INTEGER, "
+        " hash TEXT)\n";
+
+    if (sqlite3_open(db_uri, &db) != SQLITE_OK)
+    {
+        ERR("Could not open database: %s", sqlite3_errmsg(db));
+        sqlite3_close(db);
+        return NULL;
+    }
+
+    /* Update schema */
+    if (sqlite3_exec(db, schema, NULL, NULL, NULL) != SQLITE_OK)
+    {
+        ERR ("Could not create db schema: %s\n", sqlite3_errmsg(db));
+        sqlite3_close(db);
+        return NULL;
+    }
+
+    return db;
+}
+#endif /* USE_SQLITE */
+
+
 int main(int argc, char **argv)
 {
     int opt;
-    const char *fname, *dbname;
+    const char *fname, *db_uri;
+#ifdef USE_SQLITE
+    sqlite3 *db;
+#endif
 
+    /* Args */
+    fname = db_uri = NULL;
     while ((opt = getopt(argc, argv, "d:h")) != -1)
     {
         switch (opt)
         {
-            case 'd': dbname = optarg; break;
+            case 'd': db_uri = optarg; break;
             case 'h': usage(argv[0]); break;
             default: 
                 fprintf(stderr, "Unrecognized argument: -%c", optarg); 
                 exit(EXIT_FAILURE);
         }
     }
+
+#ifdef USE_SQLITE
+    if (db_uri)
+        db = init_db(db_uri);
+#endif
 
     while (optind < argc)
     {
