@@ -42,6 +42,12 @@ typedef void *sqlite3;
     exit(EXIT_FAILURE);           \
 } while(0)
 
+#define WARN(...) do {             \
+    _PR("[warning] ", __VA_ARGS__); \
+} while(0)
+
+
+
 #ifdef DEBUG
 #define DBG(...) _PR("[debug] ", __VA_ARGS__)
 #else
