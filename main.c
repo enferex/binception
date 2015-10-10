@@ -246,7 +246,7 @@ static void dump_funcs(const func_t *fns)
     for (fn=fns; fn; fn=fn->next)
     {
         bfd_vma dist = fn->en - fn->st;
-        printf("%-2.d) %p -- %p (%-4.llu bytes)", ++i, fn->st, fn->en, dist);
+        printf("%d) %p -- %p (%-4.llu bytes)", ++i, fn->st, fn->en, dist);
 #ifdef USE_OPENSSL
         printf(" 0x");
         for (j=0; j<MD5_DIGEST_LENGTH; ++j)
@@ -298,7 +298,6 @@ static const char *hash_to_str(
 
     for (i=0; i<MD5_DIGEST_LENGTH; ++i)
       sprintf((char *)(str+(i*2)), "%02x", hash[i]);
-
     str[i*2] = '\0';
     return str;
 }
