@@ -272,7 +272,7 @@ static sqlite3 *init_db(const char *db_uri)
 
     if (sqlite3_open(db_uri, &db) != SQLITE_OK)
     {
-        ERR("Could not open database: %s", sqlite3_errmsg(db));
+        WARN("Could not open database: %s", sqlite3_errmsg(db));
         sqlite3_close(db);
         return NULL;
     }
@@ -280,7 +280,7 @@ static sqlite3 *init_db(const char *db_uri)
     /* Update schema */
     if (sqlite3_exec(db, schema, NULL, NULL, NULL) != SQLITE_OK)
     {
-        ERR ("Could not create db schema: %s\n", sqlite3_errmsg(db));
+        WARN("Could not create db schema: %s", sqlite3_errmsg(db));
         sqlite3_close(db);
         return NULL;
     }
