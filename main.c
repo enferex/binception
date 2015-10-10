@@ -18,6 +18,12 @@
 #endif
 
 
+/* To avoid having macros all over the place */
+#ifndef USE_SQLITE
+typedef void *sqlite3;
+#endif
+
+
 /* Special thanks to the following for providing a very helpful example of how
  * to use libopcodes + libbfd:
  * http://www.toothycat.net/wiki/wiki.pl?Binutils/libopcodes
@@ -245,10 +251,11 @@ static void dump_funcs(const func_t *fns)
 }
 
 
-#ifdef USE_SQLITE
 static sqlite3 *init_db(const char *db_uri)
 {
-    sqlite3 *db;
+    sqlite3 *db = NULL;
+
+#ifdef USE_SQLITE
     const char *schema = 
         "CREATE TABLE IF NOT EXISTS binsniff "
         "(id INTEGER PRIMARY KEY ASC, "
@@ -271,19 +278,17 @@ static sqlite3 *init_db(const char *db_uri)
         sqlite3_close(db);
         return NULL;
     }
+#endif /* USE_SQLITE */
 
     return db;
 }
-#endif /* USE_SQLITE */
 
 
 int main(int argc, char **argv)
 {
-    int opt;
+    int opt, i;
     const char *fname, *db_uri;
-#ifdef USE_SQLITE
     sqlite3 *db;
-#endif
 
     /* Args */
     fname = db_uri = NULL;
@@ -299,10 +304,8 @@ int main(int argc, char **argv)
         }
     }
 
-#ifdef USE_SQLITE
     if (db_uri)
         db = init_db(db_uri);
-#endif
 
     while (optind < argc)
     {
@@ -316,6 +319,9 @@ int main(int argc, char **argv)
 
         /* Output the results */
         dump_funcs(all_funcs);
+
+        /* Save results to db */
+        //dump_db(all_funcs);
 
         /* Done */
         bfd_close(bin);
