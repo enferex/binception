@@ -1,8 +1,8 @@
 APP=binsniff
 CC=gcc
 OBJS=main.o
-CFLAGS=-g3 -O0 
-LDFLAGS=-lz -lbfd -lopcodes -liberty -ldl
+CFLAGS=-g3 -O0 -DUSE_OPENSSL
+LDFLAGS=-lz -lbfd -lopcodes -liberty -ldl -lssl -lcrypto
 
 all: $(OBJS) $(APP)
 

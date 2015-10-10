@@ -11,6 +11,10 @@
 #include <bfd.h>
 #include <dis-asm.h>
 
+#ifdef USE_OPENSSL
+#include <openssl/md5.h>
+#endif
+
 
 /* Special thanks to the following for providing a very helpful example of how
  * to use libopcodes + libbfd:
@@ -38,14 +42,21 @@ typedef struct _func_t
 {
     bfd_vma st; /* Address where a function begins (.text) */
     bfd_vma en; /* Address where a function ends (.text)   */
+#ifdef USE_OPENSSL
+    unsigned char hash[MD5_DIGEST_LENGTH];
+#else
+    unsigned char hash[1];
+#endif
     struct _func_t *next;
 } func_t;
 static func_t *all_funcs;
+
 
 /* Globals accessable from callbacks which have no other means of accessing this
  * data.
  */
 static bfd *bin;
+static asection *text;
 static struct disassemble_info dis_info;
 
 
@@ -68,7 +79,7 @@ static void add_node(func_t *fn)
 }
 
 
-static func_t *new_func(bfd_vma st, bfd_vma en)
+static func_t *new_func(bfd_vma st, bfd_vma en, bfd *bfd, asection *text)
 {
     func_t *fn = calloc(1, sizeof(func_t));
 
@@ -80,6 +91,19 @@ static func_t *new_func(bfd_vma st, bfd_vma en)
 
     fn->st = st;
     fn->en = en;
+#ifdef USE_OPENSSL
+    {
+        unsigned char *data;
+        const file_ptr off = text->filepos + (st - start_addr);
+        if (!(data = malloc(en - st)))
+        {
+            printf("Not enough memory to allocate function data\n");
+            exit(errno);
+        }
+        bfd_get_section_contents(bfd, text, data, off, en - st);
+        MD5(data, en - st, fn->hash);
+    }
+#endif
     return fn;
 }
 
@@ -113,7 +137,7 @@ static int process_insn(void *stream, const char *fmt, ...)
       st = curr_addr;
     else if (strncmp(str, "ret", strlen("ret")) == 0)
     {
-        func_t *fn = new_func(st, curr_addr);
+        func_t *fn = new_func(st, curr_addr, bin, text);
         add_node(fn);
         st = 0;
     }
@@ -129,7 +153,6 @@ static int process_insn(void *stream, const char *fmt, ...)
 static void *build_function_hash_list(const char *fname)
 {
     int length;
-    asection *text;
     disassembler_ftype dis;
 
     /* Initialize the binary description (needed for disassembly parsing) */
@@ -187,13 +210,19 @@ static void *build_function_hash_list(const char *fname)
 
 static void dump_funcs(const func_t *fns)
 {
-    int i;
+    int i, j;
     const func_t *fn;
 
     for (fn=fns; fn; fn=fn->next)
     {
         bfd_vma dist = fn->en - fn->st;
-        printf("%-2.d) %p -- %p (%-4.llu bytes)\n", ++i, fn->st, fn->en, dist);
+        printf("%-2.d) %p -- %p (%-4.llu bytes)", ++i, fn->st, fn->en, dist);
+#ifdef USE_OPENSSL
+        printf(" 0x");
+        for (j=0; j<MD5_DIGEST_LENGTH; ++j)
+          printf("%02x", fn->hash[j]);
+#endif
+        putc('\n', stdout);
     }
 }
 
