@@ -14,7 +14,7 @@ testapp: test.c
 
 .PHONY:test
 test: $(APP) testapp
-	./$(APP) ./testapp
+	./$(APP) ./testapp -d test.sqlite3
 
 clean:
 	$(RM) $(OBJS) $(APP) testapp
