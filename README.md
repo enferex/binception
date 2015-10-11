@@ -1,4 +1,4 @@
-## efh: ELF Func Hash: Generates hash values for all functions in a binary.
+## efh: ELF Function Hash: Generate hash values for functions within a binary.
 
 ### What
 efh is a utility that locates functions within an elf file (library, executable,
