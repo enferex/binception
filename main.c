@@ -336,7 +336,7 @@ static void save_db(sqlite3 *db, const char *pgname, const func_t *fns)
     char q[1024];
     const char spinny[] = "-\\|/";
 
-    printf("Saving records...  ");
+    printf("[%s] Saving records...  ", pgname);
     for (i=0, fn=fns; fn; fn=fn->next, ++i)
     {
         const char *pg = strrchr(pgname, '/') ? strrchr(pgname, '/')+1 : pgname;
@@ -366,8 +366,8 @@ static void save_db(sqlite3 *db, const char *pgname, const func_t *fns)
         }
     }
 
-    printf("\b\nSaved %d records to database: %s\n",
-           i, sqlite3_db_filename(db, NULL));
+    printf("\b\n[%s] Saved %d records to database: %s\n",
+           pgname, i, sqlite3_db_filename(db, NULL));
 }
 
 
