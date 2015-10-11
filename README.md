@@ -6,8 +6,9 @@ executable, object).  The hash values for all discovered functions can
 be reported to stdout or saved in a sqlite3 database.
 
 ## Why
-efh is used to hash the code of functions within an ELF binary.  The goal is to
-use this tool to figure out if that same function exists within another binary.
+binception is used to hash the code of functions within an ELF binary.  The goal
+is to use this tool to figure out if that same function exists within another
+binary.
 
 ### Dependencies
 * binutils: https://www.gnu.org/software/binutils/ (ELF handling)
