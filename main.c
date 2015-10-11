@@ -97,7 +97,7 @@ static struct disassemble_info dis_info;
 
 
 /* Address to the current instruction we are processing */
-static bfd_vma curr_addr, start_addr;
+static bfd_vma curr_addr, curr_fn_start_addr;
 
 
 static void usage(const char *execname)
@@ -134,10 +134,11 @@ static func_t *new_func(bfd_vma st, bfd_vma en, bfd *bfd, asection *text)
 #ifdef USE_OPENSSL
     {
         unsigned char *data;
-        const file_ptr off = text->filepos + (st - start_addr);
+        const file_ptr off = text->filepos + (st - bfd_get_start_address(bfd));
         if (!(data = calloc(en - st, 1)))
         {
-            printf("Not enough memory to allocate function data\n");
+            printf("Not enough memory to allocate function data "
+                   "(%llu bytes requested)\n", en - st);
             exit(errno);
         }
         bfd_get_section_contents(bfd, text, data, off, en - st);
@@ -178,7 +179,6 @@ static int process_insn(void *stream, const char *fmt, ...)
 {
     va_list va;
     const char *str;
-    static bfd_vma st;
 
     va_start(va, fmt);
     str = va_arg(va, char *);
@@ -190,13 +190,13 @@ static int process_insn(void *stream, const char *fmt, ...)
     }
 
     /* If return, compute hash from start to ret */
-    if (!st)
-      st = curr_addr;
+    if (!curr_fn_start_addr)
+      curr_fn_start_addr = curr_addr;
     else if (strncmp(str, "ret", strlen("ret")) == 0)
     {
-        func_t *fn = new_func(st, curr_addr, bin, text);
+        func_t *fn = new_func(curr_fn_start_addr, curr_addr, bin, text);
         add_node(fn);
-        st = 0;
+        curr_fn_start_addr = 0;
     }
 
     va_end(va);
@@ -253,11 +253,11 @@ static void *build_function_hash_list(const char *fname)
     }
 
     /* Start disassembly... */
-    curr_addr = start_addr = bfd_get_start_address(bin);
+    curr_addr = bfd_get_start_address(bin);
     while ((length = dis(curr_addr, &dis_info)))
     {
         curr_addr += length;
-        if ((length < 1) || (curr_addr >= (text->size + start_addr)))
+        if ((length < 1) || (curr_addr >= (text->size + bfd_get_start_address(bin))))
             break;
     }
 
@@ -401,9 +401,6 @@ int main(int argc, char **argv)
     {
         fname = argv[optind++];
 
-        /* Clear */
-        destroy_funcs(&all_funcs);
-
         /* Create a callgraph */
         build_function_hash_list(fname);
 
@@ -416,7 +413,9 @@ int main(int argc, char **argv)
           save_db(db, fname, all_funcs);
 
         /* Done */
+        curr_fn_start_addr = 0;
         bfd_close(bin);
+        destroy_funcs(&all_funcs);
     }
 
     return 0;
