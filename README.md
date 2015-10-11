@@ -1,9 +1,9 @@
-## efh: ELF Function Hash: Generate hash values for functions within a binary.
+## binception: Generate hash values for functions within a binary.
 
 ### What
-efh is a utility that locates functions within an elf file (library, executable,
-object).  The hash values for all discovered functions can be reported to stdout
-or saved in a sqlite3 database.
+binception is a utility that locates functions within an elf file (library,
+executable, object).  The hash values for all discovered functions can
+be reported to stdout or saved in a sqlite3 database.
 
 ## Why
 efh is used to hash the code of functions within an ELF binary.  The goal is to

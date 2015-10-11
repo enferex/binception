@@ -1,7 +1,7 @@
 /******************************************************************************
  * main.c
  *
- * efh - ELF Function Hash: Locate functions in a binary and hash thier code.
+ * binception - Locate functions in a binary and hash thier code.
  *
  * Copyright (C) 2015, Matt Davis (enferex)
  * This program is free software: you can redistribute it and/or modify
@@ -55,7 +55,7 @@ typedef void *sqlite3;
  * http://www.toothycat.net/wiki/wiki.pl?Binutils/libopcodes
  */
 #define _PR(_tag, ...) do {                            \
-        fprintf(stderr, "[efh]" _tag __VA_ARGS__); \
+        fprintf(stderr, "[binception]" _tag __VA_ARGS__); \
         fputc('\n', stderr);                           \
 } while(0)
 
@@ -290,7 +290,7 @@ static sqlite3 *init_db(const char *db_uri)
 
 #ifdef USE_SQLITE
     const char *schema = 
-        "CREATE TABLE IF NOT EXISTS efh "
+        "CREATE TABLE IF NOT EXISTS binception "
         "(name TEXT,"
         " start_addr INTEGER, "
         " end_addr INTEGER, "
@@ -343,7 +343,7 @@ static void save_db(sqlite3 *db, const char *pgname, const func_t *fns)
         char str[MD5_DIGEST_LENGTH * 2 + 1];
         
         hash_to_str(fn->hash, str);
-        snprintf(q, sizeof(q), "INSERT OR REPLACE INTO efh "
+        snprintf(q, sizeof(q), "INSERT OR REPLACE INTO binception "
                 "(name, start_addr, end_addr, hash) VALUES "
                 "(\"%s\", %lld, %lld, \"%s\")\n",
                 pg, fn->st, fn->en, str);
