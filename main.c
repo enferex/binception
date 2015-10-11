@@ -160,6 +160,7 @@ static void destroy_funcs(func_t **fnp)
         fn = next;
     }
 
+    free(fn);
     *fnp = NULL;
 }
 
