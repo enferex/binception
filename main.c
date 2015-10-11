@@ -102,7 +102,11 @@ static bfd_vma curr_addr, start_addr;
 
 static void usage(const char *execname)
 {
-    printf("Usage: %s [executable] [-v] [-h]\n", execname);
+    printf("Usage: %s [executable ...] [-v] [-h] [-d database]\n"
+           " -h: This help message\n"
+           " -d <database name>: Database where results are stored\n"
+           " -v: Verbose\n",
+           execname);
     exit(EXIT_SUCCESS);
 }
 
