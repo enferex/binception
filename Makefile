@@ -1,4 +1,4 @@
-APP=binsniff
+APP=efh
 CC=gcc
 OBJS=main.o
 CFLAGS=-g3 -O0 -DUSE_OPENSSL -DUSE_SQLITE
