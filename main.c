@@ -264,11 +264,10 @@ static sqlite3 *init_db(const char *db_uri)
 #ifdef USE_SQLITE
     const char *schema = 
         "CREATE TABLE IF NOT EXISTS binsniff "
-        "(id INTEGER PRIMARY KEY ASC, "
-        " name TEXT,"
+        "(name TEXT,"
         " start_addr INTEGER, "
-        " end_addr   INTEGER, "
-        " hash TEXT)\n";
+        " end_addr INTEGER, "
+        " hash TEXT PRIMARY KEY)\n";
 
     if (sqlite3_open(db_uri, &db) != SQLITE_OK)
     {
@@ -307,17 +306,20 @@ static void save_db(sqlite3 *db, const char *pgname, const func_t *fns)
 {
     int i, next_spin;
     const func_t *fn;
-    char q[1024], str[MD5_DIGEST_LENGTH * 2 + 1];
+    char q[1024];
     const char spinny[] = "-\\|/";
 
     printf("Saving records...  ");
     for (i=0, fn=fns; fn; fn=fn->next, ++i)
     {
         const char *pg = strrchr(pgname, '/') ? strrchr(pgname, '/')+1 : pgname;
+        char str[MD5_DIGEST_LENGTH * 2 + 1];
+        
+        hash_to_str(fn->hash, str);
         snprintf(q, sizeof(q), "INSERT OR REPLACE INTO binsniff "
                 "(name, start_addr, end_addr, hash) VALUES "
                 "(\"%s\", %lld, %lld, \"%s\")\n",
-                pg, fn->st, fn->en, hash_to_str(fn->hash, str));
+                pg, fn->st, fn->en, str);
 
         if (strlen(q) == sizeof(q))
           WARN("Database insert string truncated");
