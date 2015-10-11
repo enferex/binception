@@ -1,3 +1,25 @@
+/******************************************************************************
+ * main.c
+ *
+ * efh - ELF Function Hash: Locate functions in a binary and hash thier code.
+ *
+ * Copyright (C) 2015, Matt Davis (enferex)
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 2 of the License, or (at
+ * your option) any later version.
+ *             
+ * This program is distributed in the hope that it will be
+ * useful, but WITHOUT ANY WARRANTY; without even the implied
+ * warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
+ * PURPOSE.  See the GNU General Public License for more
+ * details.
+ *                             
+ * You should have received a copy of the GNU
+ * General Public License along with this program.  If not, see
+ * <http://www.gnu.org/licenses/>.
+******************************************************************************/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -33,7 +55,7 @@ typedef void *sqlite3;
  * http://www.toothycat.net/wiki/wiki.pl?Binutils/libopcodes
  */
 #define _PR(_tag, ...) do {                            \
-        fprintf(stderr, "[binema]" _tag __VA_ARGS__); \
+        fprintf(stderr, "[efh]" _tag __VA_ARGS__); \
         fputc('\n', stderr);                           \
 } while(0)
 
@@ -263,7 +285,7 @@ static sqlite3 *init_db(const char *db_uri)
 
 #ifdef USE_SQLITE
     const char *schema = 
-        "CREATE TABLE IF NOT EXISTS binsniff "
+        "CREATE TABLE IF NOT EXISTS efh "
         "(name TEXT,"
         " start_addr INTEGER, "
         " end_addr INTEGER, "
@@ -316,7 +338,7 @@ static void save_db(sqlite3 *db, const char *pgname, const func_t *fns)
         char str[MD5_DIGEST_LENGTH * 2 + 1];
         
         hash_to_str(fn->hash, str);
-        snprintf(q, sizeof(q), "INSERT OR REPLACE INTO binsniff "
+        snprintf(q, sizeof(q), "INSERT OR REPLACE INTO efh "
                 "(name, start_addr, end_addr, hash) VALUES "
                 "(\"%s\", %lld, %lld, \"%s\")\n",
                 pg, fn->st, fn->en, str);
