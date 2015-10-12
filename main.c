@@ -88,7 +88,7 @@ typedef struct _func_t
 static func_t *all_funcs;
 
 
-/* Globals accessable from callbacks which have no other means of accessing this
+/* Globals accessible from callbacks which have no other means of accessing this
  * data.
  */
 static bfd *bin;
@@ -105,6 +105,8 @@ static void usage(const char *execname)
     printf("Usage: %s [executable ...] [-v] [-h] [-d database]\n"
            " -h: This help message\n"
            " -d <database name>: Database where results are stored\n"
+           " -s: Similarity search: Find what other object files share "
+           "functions with object-file (-d must be specified).\n"
            " -v: Verbose\n",
            execname);
     exit(EXIT_SUCCESS);
@@ -371,27 +373,68 @@ static void save_db(sqlite3 *db, const char *pgname, const func_t *fns)
 }
 
 
+/* Locate functions in db which have the same hash as functions in 'fns' */
+static void calc_similarity(sqlite3 *db, const func_t *fns)
+{
+#ifdef USE_SQLITE
+    int n_matches;
+    const func_t *fn;
+    char q[1024], str[MD5_DIGEST_LENGTH * 2 + 1];
+    sqlite3_stmt *stmt;
+
+    n_matches = 0;
+    for (fn=fns; fn; fn=fn->next)
+    {
+        snprintf(q, sizeof(q),
+                 "SELECT DISTINCT name FROM binception WHERE hash=\"%s\";",
+                 hash_to_str(fn->hash, str));
+
+        if (sqlite3_prepare_v2(db, q, strlen(q)+1, &stmt, NULL) != SQLITE_OK)
+        {
+            WARN("Error querying database: %s", sqlite3_errmsg(db));
+            continue;
+        }
+
+        while (sqlite3_step(stmt) == SQLITE_ROW)
+        {
+            printf("[%s] Found match in: %s\n",
+                   sqlite3_db_filename(db, NULL),
+                   sqlite3_column_text(stmt, 0));
+        }
+        sqlite3_finalize(stmt);
+    }
+#endif /* USE_SQLITE */
+}
+
+
 int main(int argc, char **argv)
 {
     int opt;
-    _Bool verbose;
+    _Bool verbose, similarity;
     const char *fname, *db_uri;
     sqlite3 *db;
 
     /* Args */
     fname = db_uri = NULL;
-    verbose = false;
-    while ((opt = getopt(argc, argv, "d:hv")) != -1)
+    verbose = similarity = false;
+    while ((opt = getopt(argc, argv, "d:shv")) != -1)
     {
         switch (opt)
         {
             case 'd': db_uri = optarg; break;
             case 'h': usage(argv[0]); break;
             case 'v': verbose = true; break;
+            case 's': similarity = true; break;
             default: 
                 fprintf(stderr, "Unrecognized argument: -%c", optarg); 
                 exit(EXIT_FAILURE);
         }
+    }
+
+    if (similarity && !db_uri)
+    {
+        fprintf(stderr, "The -d option must be specified when using -s\n");
+        exit(EXIT_SUCCESS);
     }
 
     if (db_uri)
@@ -408,9 +451,11 @@ int main(int argc, char **argv)
         if (verbose)
           dump_funcs(all_funcs);
 
-        /* Save results to db */
-        if (db_uri)
+        /* Save results to db if we are not performing a similarity search */
+        if (!similarity && db_uri)
           save_db(db, fname, all_funcs);
+        else if (similarity)
+          calc_similarity(db, all_funcs);
 
         /* Done */
         curr_fn_start_addr = 0;
