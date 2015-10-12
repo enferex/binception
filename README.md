@@ -21,10 +21,10 @@ The following use case shows how this tool can be used to determine which
 libraries compose another program.  Results will be saved in a database called
 'mylibs.sql'
 
-1 Generate the database of library data to search (this is not recursive so
+1. Generate the database of library data to search (this is not recursive so
 perhaps a use of your shell's ```for``` builtin would be more appropriate):
     ./binception -d mylibs.sql /lib64/*
-1 Now scan a file (perhaps statically linked and stripped) to see what libraries compose it: 
+1. Now scan a file (perhaps statically linked and stripped) to see what libraries compose it: 
     ./binception -d mylibs.sql -s myexec
 
 ### Dependencies
