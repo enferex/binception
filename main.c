@@ -361,7 +361,7 @@ static void save_db(sqlite3 *db, const char *pgname, const func_t *fns)
             return;
         }
 
-        if ((i%5) == 0)
+        if ((i%10) == 0)
         {
             printf("\b%c", spinny[(next_spin++)%4]);
             fflush(NULL);
