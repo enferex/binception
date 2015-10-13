@@ -12,7 +12,7 @@ binary.  This can be useful for detecting libraries used to create a
 particular statically (and stripped) executable.
 
 ### Uses
-* Create a database of (use -d option) of libraries and determine which libraries are used in a static elf file.
+* Create a database (-d option) of libraries and determine which libraries are used in a static ELF file.
 * Once a database has been generated, use that database along with the -s option
 to find what libraries have functions that match the functions in the object
 file of question.
