@@ -477,19 +477,21 @@ static void calc_similarity(sqlite3 *db, const func_t *fns)
     for (fn=fns; fn; fn=fn->next)
     {
         snprintf(q, sizeof(q),
-                 "SELECT DISTINCT (prog, symbol) "
+                 "SELECT DISTINCT prog, symbol "
                  "FROM binception WHERE hash=\"%s\";",
                  hash_to_str(fn->hash, str));
 
         if (sqlite3_prepare_v2(db, q, strlen(q)+1, &stmt, NULL) != SQLITE_OK)
         {
-            WARN("Error querying database: %s", sqlite3_errmsg(db));
+            WARN("Issue with querying database: %s", sqlite3_errmsg(db));
             continue;
         }
 
         while (sqlite3_step(stmt) == SQLITE_ROW)
-          printf("Found match in: %s (%s)\n", 
-                 sqlite3_column_text(stmt,0), str);
+          printf("Found match in: %s, function:%s, %s\n", 
+                 sqlite3_column_text(stmt,0),
+                 sqlite3_column_text(stmt,1),
+                 str);
 
         sqlite3_finalize(stmt);
     }

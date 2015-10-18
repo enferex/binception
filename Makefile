@@ -11,11 +11,12 @@ $(APP): $(OBJS)
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 testapp: test.c
-	$(CC) -o $@ $^
+	$(CC) -o $@ $^ -g3 -O0
 
 .PHONY:test
 test: clean $(APP) testapp
 	./$(APP) ./testapp -d $(TESTDB)
+	./$(APP) ./testapp -d $(TESTDB) -s
 
 clean:
 	$(RM) $(OBJS) $(APP) testapp $(TESTDB)
