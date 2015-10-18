@@ -394,11 +394,8 @@ static void calc_similarity(sqlite3 *db, const func_t *fns)
         }
 
         while (sqlite3_step(stmt) == SQLITE_ROW)
-        {
-            printf("[%s] Found match in: %s\n",
-                   sqlite3_db_filename(db, NULL),
-                   sqlite3_column_text(stmt, 0));
-        }
+          printf("Found match in: %s (%s)\n", sqlite3_column_text(stmt,0), str);
+
         sqlite3_finalize(stmt);
     }
 #endif /* USE_SQLITE */
