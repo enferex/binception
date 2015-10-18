@@ -68,8 +68,6 @@ typedef void *sqlite3;
     _PR("[warning] ", __VA_ARGS__); \
 } while(0)
 
-
-
 #ifdef DEBUG
 #define DBG(...) _PR("[debug] ", __VA_ARGS__)
 #else
@@ -102,12 +100,12 @@ static bfd_vma curr_addr, curr_fn_start_addr;
 
 static void usage(const char *execname)
 {
-    printf("Usage: %s [executable ...] [-v] [-h] [-d database]\n"
-           " -h: This help message\n"
+    printf("Usage: %s [executable ...] [-d database] [-v] [-h] [-s]\n"
            " -d <database name>: Database where results are stored\n"
-           " -s: Similarity search: Find what other object files share "
-           "functions with object-file (-d must be specified).\n"
            " -v: Verbose\n",
+           " -h: This help message\n"
+           " -s: Similarity search: Find what other object files share "
+           "functions with object-file (-d must be specified).\n",
            execname);
     exit(EXIT_SUCCESS);
 }
