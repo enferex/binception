@@ -61,10 +61,11 @@ typedef void *sqlite3;
 
 #define ERR(...) do {             \
     _PR("[error] ", __VA_ARGS__); \
+    fputc('\n', stderr);          \
     exit(EXIT_FAILURE);           \
 } while(0)
 
-#define WARN(...) do {             \
+#define WARN(...) do {              \
     _PR("[warning] ", __VA_ARGS__); \
 } while(0)
 
@@ -427,9 +428,21 @@ static void save_db(sqlite3 *db, const char *pgname, const func_t *fns)
     int i, next_spin;
     const func_t *fn;
     char q[1024];
+    _Bool do_batch;
     const char spinny[] = "-\\|/";
 
     printf("[%s] Saving records...  ", pgname);
+
+    /* Start a transaction */
+    do_batch = true;
+    if (sqlite3_exec(db, "BEGIN TRANSACTION;", NULL, NULL, NULL) != SQLITE_OK)
+    {
+        do_batch = false;
+        WARN("Could not initiate a sqlite transaction (ok): %s\n",
+             sqlite3_errmsg(db));
+    }
+
+    /* Add inserts into the transaction */
     for (i=0, fn=fns; fn; fn=fn->next, ++i)
     {
         const char *pg = strrchr(pgname, '/') ? strrchr(pgname, '/')+1 : pgname;
@@ -451,6 +464,18 @@ static void save_db(sqlite3 *db, const char *pgname, const func_t *fns)
             sqlite3_close(db);
             return;
         }
+        
+        if (do_batch && (i % 2000) == 0)
+        {
+            if (sqlite3_exec(db,"COMMIT TRANSACTION",NULL,NULL,NULL)!=SQLITE_OK)
+              ERR("Error submitting batch: %s", sqlite3_errmsg(db));
+            if (sqlite3_exec(db,"BEGIN TRANSACTION",NULL,NULL,NULL)!=SQLITE_OK)
+            {
+                ERR("Error creating a new transaction (ok): %s",
+                    sqlite3_errmsg(db));
+                do_batch = false;
+            }
+        }
 
         if ((i%10) == 0)
         {
@@ -458,6 +483,10 @@ static void save_db(sqlite3 *db, const char *pgname, const func_t *fns)
             fflush(NULL);
         }
     }
+
+    if (do_batch)
+        if (sqlite3_exec(db, "END TRANSACTION;", NULL, NULL,NULL) != SQLITE_OK)
+            ERR("Error submitting final batch: %s", sqlite3_errmsg(db));
 
     printf("\b\n[%s] Saved %d records to database: %s\n",
            pgname, i, sqlite3_db_filename(db, NULL));
