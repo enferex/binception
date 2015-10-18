@@ -82,6 +82,7 @@ typedef struct _func_t
     bfd_vma en; /* Address where a function ends (.text)   */
     unsigned char hash[MD5_DIGEST_LENGTH];
     struct _func_t *next;
+    const char *symbol; /* Symbol/function name if known */
 } func_t;
 static func_t *all_funcs;
 
@@ -92,6 +93,7 @@ static func_t *all_funcs;
 static bfd *bin;
 static asection *text;
 static struct disassemble_info dis_info;
+static asymbol **symbols, **sorted_symbols;
 
 
 /* Address to the current instruction we are processing */
@@ -111,6 +113,22 @@ static void usage(const char *execname)
 }
 
 
+/* Given a vm address scan the symbol table  and return the given symbol if
+ * found, and NULL otherwise.
+ */
+static const asymbol *addr_to_symbol(bfd_vma addr)
+{
+    int i;
+
+    /* If we find an exact match return early */
+    for (i=0; sorted_symbols[i]; ++i)
+      if (addr == bfd_asymbol_value(sorted_symbols[i]))
+        return sorted_symbols[i];
+
+    return NULL;
+}
+
+
 /* Add a function to our list of functions */
 static void add_node(func_t *fn)
 {
@@ -121,6 +139,7 @@ static void add_node(func_t *fn)
 
 static func_t *new_func(bfd_vma st, bfd_vma en, bfd *bfd, asection *text)
 {
+    const asymbol *sym;
     func_t *fn = calloc(1, sizeof(func_t));
 
     if (!fn)
@@ -131,6 +150,10 @@ static func_t *new_func(bfd_vma st, bfd_vma en, bfd *bfd, asection *text)
 
     fn->st = st;
     fn->en = en;
+
+    if ((sym = addr_to_symbol(st)))
+        fn->symbol = sym->name;
+
 #ifdef USE_OPENSSL
     {
         unsigned char *data;
@@ -163,6 +186,74 @@ static void destroy_funcs(func_t **fnp)
 
     free(fn);
     *fnp = NULL;
+}
+
+
+/* Predicate to qsort */
+static int cmp_symbol_addr(const void *s1, const void *s2)
+{
+    bfd_vma a = bfd_asymbol_value(*(const asymbol **)s1);
+    bfd_vma b = bfd_asymbol_value(*(const asymbol **)s2);
+    if (a < b)
+      return -1;
+    else if (a == b)
+      return 0;
+    else
+      return 1;
+}
+
+
+/* Read the BFD and obtain the symbols.  We take a hint from addr2line and
+ * objdump.  If we have no normal symbols (e.g., the case of a striped binary)
+ * then we use the dynamic symbol table.  We only use the latter if there are no
+ * regular symbols.
+ */
+static void get_symbols(bfd *bin)
+{
+    int i, idx, n_syms, size;
+    bool is_dynamic;
+
+    /* Debugging */
+    DBG("Symbol table upper bound:         %ld bytes",
+        bfd_get_symtab_upper_bound(bin));
+    DBG("Dynamic symbol table upper bound: %ld bytes",
+        bfd_get_dynamic_symtab_upper_bound(bin));
+
+    /* Get symbol table size (if no regular syms, get dynamic syms)
+    * There is always a sentinel symbol (e.g., sizeof(asymbol*)
+    */
+    is_dynamic = false;
+    if ((size = bfd_get_symtab_upper_bound(bin)) <= sizeof(asymbol*))
+    {
+        if ((size=bfd_get_dynamic_symtab_upper_bound(bin)) <= sizeof(asymbol*))
+          ERR("Could not locate any symbols to use");
+        is_dynamic = 1;
+    }
+
+    /* TODO: For now exit if we only have dynamic symbols */
+    if (0 && is_dynamic)
+      ERR("Could not locate any symbols (dynamic symbols not supported)");
+
+    if (!(symbols = malloc(size)))
+      ERR("Could not allocate enough memory to store the symbol table");
+
+    n_syms = (is_dynamic) ? bfd_canonicalize_dynamic_symtab(bin, symbols) :
+                            bfd_canonicalize_symtab(bin, symbols);
+
+    if (!n_syms)
+      ERR("Could not locate any symbols");
+
+    DBG("Loaded %d symbols", n_syms);
+
+    /* Sort the symbols for easer searching via location */
+    if (!(sorted_symbols = calloc(n_syms, sizeof(asymbol*))))
+      ERR("Could not allocate enough memory to store a sorted symbol table");
+
+    /* Ignore symbols with a value(address) of 0 */
+    for (i=0, idx=0; i<n_syms; ++i)
+      if (bfd_asymbol_value(symbols[i]) != 0)
+        sorted_symbols[idx++] = symbols[i];
+    qsort(sorted_symbols, idx, sizeof(asymbol *), cmp_symbol_addr);
 }
 
 
@@ -207,7 +298,7 @@ static int process_insn(void *stream, const char *fmt, ...)
 /* Open the file and use libopcodes + libfd to create a list 
  * of function hashes.
  */
-static void *build_function_hash_list(const char *fname)
+static void build_function_hash_list(const char *fname)
 {
     int length;
     disassembler_ftype dis;
@@ -232,6 +323,9 @@ static void *build_function_hash_list(const char *fname)
         bfd_perror("Could not locate .text section of the binary");
         exit(EXIT_FAILURE);
     }
+   
+    /* Load symbols */ 
+    get_symbols(bin);
 
     /* Initialize libopcodes */
     init_disassemble_info(&dis_info, stdout, (fprintf_ftype)process_insn);
@@ -260,8 +354,6 @@ static void *build_function_hash_list(const char *fname)
         if ((length < 1) || (curr_addr >= (text->size + bfd_get_start_address(bin))))
             break;
     }
-
-    return NULL;
 }
 
 
@@ -291,9 +383,10 @@ static sqlite3 *init_db(const char *db_uri)
 #ifdef USE_SQLITE
     const char *schema = 
         "CREATE TABLE IF NOT EXISTS binception "
-        "(name TEXT,"
+        "(prog TEXT,"
         " start_addr INTEGER, "
         " end_addr INTEGER, "
+        " symbol TEXT, "
         " hash TEXT PRIMARY KEY)\n";
 
     if (sqlite3_open(db_uri, &db) != SQLITE_OK)
@@ -344,9 +437,9 @@ static void save_db(sqlite3 *db, const char *pgname, const func_t *fns)
         
         hash_to_str(fn->hash, str);
         snprintf(q, sizeof(q), "INSERT OR REPLACE INTO binception "
-                "(name, start_addr, end_addr, hash) VALUES "
-                "(\"%s\", %lld, %lld, \"%s\")\n",
-                pg, fn->st, fn->en, str);
+                "(prog, start_addr, end_addr, hash, symbol) VALUES "
+                "(\"%s\", %lld, %lld, \"%s\", \"%s\")\n",
+                pg, fn->st, fn->en, str, fn->symbol);
 
         if (strlen(q) == sizeof(q))
           WARN("Database insert string truncated");
@@ -384,7 +477,8 @@ static void calc_similarity(sqlite3 *db, const func_t *fns)
     for (fn=fns; fn; fn=fn->next)
     {
         snprintf(q, sizeof(q),
-                 "SELECT DISTINCT name FROM binception WHERE hash=\"%s\";",
+                 "SELECT DISTINCT (prog, symbol) "
+                 "FROM binception WHERE hash=\"%s\";",
                  hash_to_str(fn->hash, str));
 
         if (sqlite3_prepare_v2(db, q, strlen(q)+1, &stmt, NULL) != SQLITE_OK)
@@ -394,7 +488,8 @@ static void calc_similarity(sqlite3 *db, const func_t *fns)
         }
 
         while (sqlite3_step(stmt) == SQLITE_ROW)
-          printf("Found match in: %s (%s)\n", sqlite3_column_text(stmt,0), str);
+          printf("Found match in: %s (%s)\n", 
+                 sqlite3_column_text(stmt,0), str);
 
         sqlite3_finalize(stmt);
     }
@@ -455,6 +550,8 @@ int main(int argc, char **argv)
         /* Done */
         curr_fn_start_addr = 0;
         bfd_close(bin);
+        free(symbols);
+        free(sorted_symbols);
         destroy_funcs(&all_funcs);
     }
 
