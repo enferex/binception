@@ -25,6 +25,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include <stdbool.h>
+#include <ctype.h>
 #include <errno.h>
 #include <getopt.h>
 #include <unistd.h>
@@ -74,6 +75,20 @@ typedef void *sqlite3;
 #else
 #define DBG(...)
 #endif
+
+
+/* Set to store integers */
+typedef struct _set_t
+{
+    int *vals;
+    int idx;  /* First available index (vals[idx]) */
+    int max;  /* Maximum entries that can be stores in vals */
+} set_t;
+
+
+/* Global sets to store targets of calls and return instruction locations */
+static set_t called;
+static set_t rets;
 
 
 /* Type representing the start/end of a function's code (.text section) */
@@ -258,6 +273,50 @@ static void get_symbols(bfd *bin)
 }
 
 
+static void add_to_set(set_t *set, bfd_vma val)
+{
+    if (set->idx >= set->max)
+    {
+        set->max += 1024;
+        if (!(set->vals = realloc(set->vals, set->max * sizeof(int))))
+          ERR("Could not allocate enough memory to store into set");
+    }
+    set->vals[set->idx++] = val;
+}
+
+
+/* For each call target look for its return statement address.
+ * That start address and return address is the function.
+ *
+ * call_targets: Address of functions being called
+ * rets:         Address of return statements (must be sorted ascending)
+ */
+static void calls_to_functions(set_t *call_targets, set_t *rets, bfd *bfd, asection *text)
+{
+    int i, j;
+
+    for (i=0; i<call_targets->idx; ++i)
+    {
+        const bfd_vma addr = call_targets->vals[i];
+        bfd_vma found_end = 0;
+        const asymbol *sym = addr_to_symbol(addr);
+
+        /* Seach each "ret" discovered.  The closest one after 'addr' represents
+         * the range of the function.
+         */
+        for (j=0; j<rets->idx; ++j)
+          if (rets->vals[j] > addr)
+          {
+              found_end = rets->vals[j];
+              break;
+          }
+
+        if (found_end)
+          add_node(new_func(addr, found_end, bfd, text));
+    }
+}
+
+
 /* Each insn and all arguments are passed as individual strings:
  * We only care about calls and returns.
  *
@@ -270,7 +329,9 @@ static void get_symbols(bfd *bin)
 static int process_insn(void *stream, const char *fmt, ...)
 {
     va_list va;
+    bfd_vma call_addr;
     const char *str;
+    static _Bool found_call;
 
     va_start(va, fmt);
     str = va_arg(va, char *);
@@ -281,15 +342,18 @@ static int process_insn(void *stream, const char *fmt, ...)
         return 0;
     }
 
-    /* If return, compute hash from start to ret */
-    if (!curr_fn_start_addr)
-      curr_fn_start_addr = curr_addr;
-    else if (strncmp(str, "ret", strlen("ret")) == 0)
+    if (found_call)
     {
-        func_t *fn = new_func(curr_fn_start_addr, curr_addr, bin, text);
-        add_node(fn);
-        curr_fn_start_addr = 0;
+        /* This must be a function address if its the target of a call insn */
+        if (isxdigit(str[0]))
+          add_to_set(&called, strtoull(str, NULL, 16));
+        found_call = false;
     }
+    else if (strncmp(str, "ret", strlen("ret")) == 0 ||
+             strncmp(str, "hlt", strlen("hlt")) == 0)
+      add_to_set(&rets, curr_addr);
+    else if (strncmp(str, "call", strlen("call")) == 0)
+      found_call = true;
 
     va_end(va);
     return 0;
@@ -303,6 +367,8 @@ static void build_function_hash_list(const char *fname)
 {
     int length;
     disassembler_ftype dis;
+
+    printf("[%s] Disassembling... \n", fname);
 
     /* Initialize the binary description (needed for disassembly parsing) */
     bfd_init();
@@ -355,6 +421,9 @@ static void build_function_hash_list(const char *fname)
         if ((length < 1) || (curr_addr >= (text->size + bfd_get_start_address(bin))))
             break;
     }
+
+    /* Now take the collected data and create functions */
+    calls_to_functions(&called, &rets, bin, text);
 }
 
 
@@ -366,7 +435,8 @@ static void dump_funcs(const func_t *fns)
     for (fn=fns; fn; fn=fn->next)
     {
         bfd_vma dist = fn->en - fn->st;
-        printf("%d) %p -- %p (%-4.llu bytes)", ++i, fn->st, fn->en, dist);
+        printf("%d) %p -- %p (%s) (%-4.llu bytes)", 
+               ++i, fn->st, fn->en, fn->symbol, dist);
 #ifdef USE_OPENSSL
         printf(" 0x");
         for (j=0; j<MD5_DIGEST_LENGTH; ++j)
