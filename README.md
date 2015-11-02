@@ -1,8 +1,7 @@
 ## binception: Generate hash values for functions within a binary.
 
 ### Important
-This is alpha and has at least one critical bug when detecting
-address/function boundaries.
+This is alpha and not perfect.
 
 ### What
 binception is a utility that locates functions within an elf file (library,
